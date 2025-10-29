@@ -30,9 +30,9 @@ jobs:
         run: docker push ${{vars.DOCKERHUB_USERNAME}}/Tunehub
   
   deploy:
-    needs: build
     name: deploy application in ec2 server
     runs-on: self-hosted
+    needs: build
     steps:
       - name: running of mysql container
         run: |
