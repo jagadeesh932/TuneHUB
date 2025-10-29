@@ -37,32 +37,35 @@ jobs:
     needs: build
 
     steps:
+      - name: Create Docker Network
+        run: docker network create musichub-network || true
+
       - name: Run MySQL Container
         run: |
-          docker run -d --name tunehub-db-container \
-            -e MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }} \
-            -e MYSQL_DATABASE=${{ vars.MYSQL_DATABASE }} \
-            -e MYSQL_USER=${{ vars.MYSQL_USER }} \
-            -e MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }} \
-            -p 3306:3306 \
-            mysql:latest
-          echo "⏳ Waiting for MySQL to start..."
-          sleep 30
+          docker run -d --name tunehub-db \
+          --network musichub-network \
+          -e MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }} \
+          -e MYSQL_DATABASE=${{ vars.MYSQL_DATABASE }} \
+          -e MYSQL_USER=${{ vars.MYSQL_USER }} \
+          -e MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }} \
+          -p 3306:3306 \
+          mysql:latest
 
-      - name: Pull TuneHub Image from DockerHub
+      - name: Pull TuneHub Image
         run: docker pull ${{ vars.DOCKERHUB_USERNAME }}/tunehub:latest
 
-      - name: Run TuneHub App Container
+      - name: Run TuneHub App
         run: |
           docker run -d \
-            --name tunehub-app \
-            --link tunehub-db-container:mysql \
-            -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/${{ vars.MYSQL_DATABASE }} \
-            -e SPRING_DATASOURCE_USERNAME=${{ vars.MYSQL_USER }} \
-            -e SPRING_DATASOURCE_PASSWORD=${{ secrets.MYSQL_PASSWORD }} \
-            -e SERVER_PORT=8080 \
-            -p 8080:8080 \
-            ${{ vars.DOCKERHUB_USERNAME }}/tunehub:latest
+          --name tunehub-app \
+          --network musichub-network \
+          -e SPRING_DATASOURCE_URL=jdbc:mysql://tunehub-db:3306/${{ vars.MYSQL_DATABASE }} \
+          -e SPRING_DATASOURCE_USERNAME=${{ vars.MYSQL_USER }} \
+          -e SPRING_DATASOURCE_PASSWORD=${{ secrets.MYSQL_PASSWORD }} \
+          -e SERVER_PORT=8080 \
+          -p 8080:8080 \
+          ${{ vars.DOCKERHUB_USERNAME }}/tunehub:latest
 
       - name: Check Running Containers
         run: docker ps -a
+
