@@ -1,69 +1,70 @@
-name: Tunehub-pipeline
-on: workflow_dispatch
+name: Tunehub-Pipeline
+
+on:
+  workflow_dispatch:
+
 jobs:
   build:
-    name:build and push docker image to hub
+    name: Build and Push Docker Image to DockerHub
     runs-on: ubuntu-latest
+
     steps:
-      - name: checkout code
-        uses: actions/checkout@v5.0.0
-        
-      - name: installation of java and maven
-        uses: actions/setup-java@v5.0.0
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Install Java and Maven
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-          
-      - name: building jar with maven 
+
+      - name: Build JAR with Maven
         run: mvn clean package -DskipTests
-        
-      - name: login into dockerhub
-        uses: docker/login-action@v3.6.0
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
         with:
-          username: ${{vars.DOCKERHUB_USERNAME}}
-          password: ${{secrets.DOCKERHUB_PASSWORD}}
-          
-      - name: building docker-tunehub image
-        run: docker build -t ${{vars.DOCKERHUB_USERNAME}}/Tunehub .
-        
-      - name: pushing of tunehub image
-        run: docker push ${{vars.DOCKERHUB_USERNAME}}/Tunehub
-  
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build Docker Image
+        run: docker build -t ${{ vars.DOCKERHUB_USERNAME }}/tunehub:latest .
+
+      - name: Push Docker Image
+        run: docker push ${{ vars.DOCKERHUB_USERNAME }}/tunehub:latest
+
   deploy:
-    name: deploy application in ec2 server
+    name: Deploy Application to EC2 Server
     runs-on: self-hosted
     needs: build
+
     steps:
-      - name: running of mysql container
+      - name: Run MySQL Container
         run: |
-          docker run -dt --name tunehub-db-container \
-          -e MYSQL_ROOT_PASSWORD=${{secrets.MYSQL_ROOT_PASSWORD}} \
-            -e MYSQL_DATABASE=${{vars.MYSQL_DATABASE}}\
-            -e MYSQL_USER=${{vars.MYSQL_USER}} \
-            -e MYSQL_PASSWORD=${{secrets.MYSQL_PASSWORD}} \
+          docker run -d --name tunehub-db-container \
+            -e MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }} \
+            -e MYSQL_DATABASE=${{ vars.MYSQL_DATABASE }} \
+            -e MYSQL_USER=${{ vars.MYSQL_USER }} \
+            -e MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }} \
             -p 3306:3306 \
             mysql:latest
-          echo "Waiting for MySQL to start..."
+          echo "⏳ Waiting for MySQL to start..."
           sleep 30
-          
-      -name: pulling of tunehub image from dockerhub
-       run: docker pull ${{vars.DOCKERHUB_USERNAME}}/Tunehub
-       
-      - name: running of tunehub container
+
+      - name: Pull TuneHub Image from DockerHub
+        run: docker pull ${{ vars.DOCKERHUB_USERNAME }}/tunehub:latest
+
+      - name: Run TuneHub App Container
         run: |
-           docker run -dt \
+          docker run -d \
             --name tunehub-app \
             --link tunehub-db-container:mysql \
-            -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/tunehubdb \
-            -e SPRING_DATASOURCE_USERNAME=${{vars.MYSQL_USER}} \
-            -e SPRING_DATASOURCE_PASSWORD=${{secrets.MYSQL_PASSWORD}} \
+            -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/${{ vars.MYSQL_DATABASE }} \
+            -e SPRING_DATASOURCE_USERNAME=${{ vars.MYSQL_USER }} \
+            -e SPRING_DATASOURCE_PASSWORD=${{ secrets.MYSQL_PASSWORD }} \
             -e SERVER_PORT=8080 \
             -p 8080:8080 \
-            ${{vars.DOCKER_USERNAME}}/Tunehub
+            ${{ vars.DOCKERHUB_USERNAME }}/tunehub:latest
 
-      - name: checking running containers
+      - name: Check Running Containers
         run: docker ps -a
-    
-
-        
-      
