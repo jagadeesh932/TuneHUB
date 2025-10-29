@@ -11,15 +11,16 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v5
-
+      - name: List files
+        run: ls -R
       - name: Install Java and Maven
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Build JAR with Maven
-        run: mvn clean package -DskipTests
+      - name: Build Jar with Maven
+        run: mvn -f ProjectTuneHub/pom.xml clean package -DskipTests
 
       - name: Log in to DockerHub
         uses: docker/login-action@v3
