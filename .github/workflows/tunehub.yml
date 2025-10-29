@@ -5,7 +5,65 @@ jobs:
     name:build and push docker image to hub
     runs-on: ubuntu-latest
     steps:
-      -name: checkout code
-       uses: actions/checkout@v5.0.0
-      
+      - name: checkout code
+        uses: actions/checkout@v5.0.0
+        
+      - name: installation of java and maven
+        uses: actions/setup-java@v5.0.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          
+      - name: building jar with maven 
+        run: mvn clean package -DskipTests
+        
+      - name: login into dockerhub
+        uses: docker/login-action@v3.6.0
+        with:
+          username: ${{vars.DOCKERHUB_USERNAME}}
+          password: ${{secrets.DOCKERHUB_PASSWORD}}
+          
+      - name: building docker-tunehub image
+        run: docker build -t ${{vars.DOCKERHUB_USERNAME}}/Tunehub .
+        
+      - name: pushing of tunehub image
+        run: docker push ${{vars.DOCKERHUB_USERNAME}}/Tunehub
+  
+  deploy:
+    needs: build
+    name: deploy application in ec2 server
+    runs-on: self-hosted
+    steps:
+      - name: running of mysql container
+        run: |
+          docker run -dt --name tunehub-db-container \
+          -e MYSQL_ROOT_PASSWORD=${{secrets.MYSQL_ROOT_PASSWORD}} \
+            -e MYSQL_DATABASE=${{vars.MYSQL_DATABASE}}\
+            -e MYSQL_USER=${{vars.MYSQL_USER}} \
+            -e MYSQL_PASSWORD=${{secrets.MYSQL_PASSWORD}} \
+            -p 3306:3306 \
+            mysql:latest
+          echo "Waiting for MySQL to start..."
+          sleep 30
+          
+      -name: pulling of tunehub image from dockerhub
+       run: docker pull ${{vars.DOCKERHUB_USERNAME}}/Tunehub
+       
+      - name: running of tunehub container
+        run: |
+           docker run -dt \
+            --name tunehub-app \
+            --link tunehub-db-container:mysql \
+            -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/tunehubdb \
+            -e SPRING_DATASOURCE_USERNAME=${{vars.MYSQL_USER}} \
+            -e SPRING_DATASOURCE_PASSWORD=${{secrets.MYSQL_PASSWORD}} \
+            -e SERVER_PORT=8080 \
+            -p 8080:8080 \
+            ${{vars.DOCKER_USERNAME}}/Tunehub
+
+      - name: checking running containers
+        run: docker ps -a
+    
+
+        
       
