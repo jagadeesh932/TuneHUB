@@ -50,6 +50,14 @@ jobs:
           -e MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }} \
           -p 3306:3306 \
           mysql:latest
+      - name: Wait for MySQL readiness
+        run: |
+          until docker exec tunehub-db mysqladmin ping -h "localhost" --silent; do
+          echo "Waiting for MySQL..."
+          sleep 5
+          done
+
+
 
       - name: Pull TuneHub Image
         run: docker pull ${{ vars.DOCKERHUB_USERNAME }}/tunehub:latest
